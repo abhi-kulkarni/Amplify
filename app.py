@@ -8,6 +8,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import json
 from flask_sqlalchemy import SQLAlchemy
 from functools import wraps
+import datetime
 
 env = os.environ.get
 
@@ -213,8 +214,194 @@ def clear_session():
 
     return flask.jsonify(ok=True)
 
-from views import user_views
-from views import todo_views
+# User Management Views
+@app.route('/usermanagement_data', methods=['GET'])
+def usermanagement_data():
+    from models import User
+    from app import db
+
+    user=[k.to_dict() for k in db.session.query(User).all()]
+
+    return flask.jsonify(ok=True, users=user)
+
+
+@app.route('/add_user', methods=['POST'])
+def add_user():
+    from app import db
+    from models import User
+    import json
+    import uuid
+    
+    post_data = flask.request.json.get('post_data', '')
+    validate_email = db.session.query(User).filter(User.email == post_data.get('email', '')).all()
+    if len(validate_email) > 0:
+        if 'sso' in post_data and post_data['sso']:
+            return flask.jsonify(ok=False, error="An Account already exists with this email, you can sign in !")
+        else:
+            return flask.jsonify(ok=False, error="Email already Exists, please try with a different email !")
+    else:
+        user = User()
+        user.id = str(uuid.uuid4())
+        user.password = generate_password_hash(post_data.get('password', ''), salt_length=8)
+        user.created_on = datetime.datetime.now()
+        user.first_name = post_data.get('first_name', '')
+        user.last_name = post_data.get('last_name', '')
+        user.username = post_data.get('username', '')
+        user.email = post_data.get('email', '')
+        user.gender = post_data.get('gender', '')
+        user.country = post_data.get('country', '')
+        user.sso = post_data.get('sso', False)
+        user.provider = post_data.get('provider', '')
+        user.profile_picture = post_data.get('profile_picture', '')
+        extra_data = {"app_theme_color":"#0097A7"}
+        user.extra_data = json.dumps(extra_data)
+        db.session.add(user)
+        db.session.commit()
+        return flask.jsonify(ok=True)
+
+@app.route('/edit_user', methods=['POST'])
+def edit_user():
+    from app import db
+    from models import User
+    import json
+    
+    post_data = flask.request.json.get('post_data', '')
+    validate_email = db.session.query(User).filter(User.email == post_data.get('email', '')).all()
+    if len(validate_email) > 0:
+        return flask.jsonify(ok=False, error="Email already Exists, please try with a different email !")
+    user = User.query.get(post_data.get('id', ''))
+    user.first_name = post_data.get('first_name', '')
+    user.last_name = post_data.get('last_name', '')
+    user.username = post_data.get('username', '')
+    user.email = post_data.get('email', '')
+    user.country = post_data.get('country', '')
+    user.gender = post_data.get('gender', '')
+    user.profile_picture = post_data.get('profile_picture', '')
+    app_theme_color = post_data.get('app_theme_color', '')
+    extra_data = {"app_theme_color": app_theme_color}
+    user.extra_data = json.dumps(extra_data)
+    db.session.add(user)
+    db.session.commit()
+    return flask.jsonify(ok=True)
+
+@app.route('/delete_user/<int:user_id>',methods=['DELETE'])
+def delete_user(user_id):
+    from models import User, Todo
+    from app import db
+
+    user=User.query.get(user_id)
+    todos = db.session.query(Todo).filter(Todo.user_id == user_id).all()
+    for todo in todos:
+        db.session.delete(todo)
+    db.session.delete(user)
+    db.session.commit()
+    return flask.jsonify(ok=True)
+
+
+@app.route("/get_user_data/<string:user_id>", methods=["GET"])
+def get_user_data(user_id):
+    from app import db
+    from models import User
+    
+    user_data = db.session.query(User).get(user_id)
+    if user_data:
+        user_data = user_data.to_dict()
+        return flask.jsonify(ok=True, user_data=user_data)
+    else:
+        return flask.jsonify(ok=False)
+
+# Todo Views
+@app.route('/get_all_todo_data', methods=['GET'])
+def get_all_todo_data():
+    from models import Todo
+    from app import db
+
+    todos=[k.to_dict() for k in db.session.query(Todo).filter(Todo.user_id == flask.session["user_id"]).all()]
+    for todo_obj in todos:
+        todo_obj["check"] = False
+
+    return flask.jsonify(ok=True, todos=todos)
+
+
+@app.route('/add_todo', methods=['POST'])
+def add_todo():
+    from app import db
+    from models import Todo, User
+    import uuid
+
+    post_data = flask.request.json.get('post_data', '')
+
+    todo = Todo()
+    todo.id = str(uuid.uuid4())
+    todo.title = post_data.get('title', '')
+    todo.user_id = flask.session["user_id"]
+    todo.created_on = datetime.datetime.now()
+    todo.status = post_data.get('status', False)
+    todo.content = post_data.get('content', '')
+    todo.alarm_time = post_data.get('alarm_time', None)
+
+    db.session.add(todo)
+    db.session.commit()
+
+    return flask.jsonify(ok=True)
+
+@app.route('/edit_todo', methods=['PUT'])
+def edit_todo():
+    from app import db
+    from models import User, Todo
+    import json
+    
+    post_data = flask.request.json.get('post_data', '')
+
+    todo = db.session.query(Todo).get(post_data.get('id', ''))
+    todo.title = post_data.get('title', '')
+    todo.content = post_data.get('content', '')
+    todo.alarm_time = post_data.get('alarm_time', '')
+    todo.status = post_data.get('status', False)
+
+    db.session.add(todo)
+    db.session.commit()
+
+    return flask.jsonify(ok=True)
+
+@app.route('/delete_todo/<string:todo_id>',methods=['DELETE'])
+def delete_todo(todo_id):
+    from models import Todo, User
+    from app import db
+
+    todo=db.session.query(Todo).get(todo_id)
+    db.session.delete(todo)
+    db.session.commit()
+
+    return flask.jsonify(ok=True)
+
+
+@app.route('/delete_selected_todos',methods=['POST'])
+def delete_selected_todos():
+    from models import Todo, User
+    from app import db
+
+    selected_todos = flask.request.json.get('selected_todos', '')
+    todo_data = db.session.query(Todo).filter(Todo.id.in_(selected_todos)).all()
+    for todo_obj in todo_data:
+        db.session.delete(todo_obj)
+    db.session.commit()
+
+    return flask.jsonify(ok=True)
+
+
+@app.route("/get_todo_data/<string:todo_id>", methods=["GET"])
+def get_todo_data(todo_id):
+    from app import db
+    from models import Todo
+    
+    todo_data = db.session.query(Todo).get(todo_id)
+    if todo_data:
+        todo_data = todo_data.to_dict()
+        return flask.jsonify(ok=True, todo_data=todo_data)
+    else:
+        return flask.jsonify(ok=False)
+
 
 if __name__ == '__main__':
     app.run()
