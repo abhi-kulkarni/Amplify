@@ -16,7 +16,7 @@
     "dotenv": "^8.2.0",
     "echarts": "^4.8.0",
     "facebook-login-vuejs": "^2.1.3",
-    "quasar": "^1.0.0",
+    "quasar": "^1.15.23",
     "require": "^2.4.20",
     "save-dev": "0.0.1-security",
     "vue": "^2.6.11",
