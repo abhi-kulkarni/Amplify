@@ -3,7 +3,7 @@ Flask==1.1.2
 Flask-Cors==3.0.7
 Flask-SQLAlchemy==2.4.3
 itsdangerous==1.1.0
-Jinja2==2.11.2
+Jinja2==2.11.3
 MarkupSafe==1.1.1
 mysqlclient==1.4.2.post1
 six==1.15.0
